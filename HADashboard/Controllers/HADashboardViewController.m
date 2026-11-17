@@ -1847,7 +1847,16 @@ static inline NSString *HANormalizeState(id val) {
 
     for (NSUInteger i = 0; i < self.lovelaceDashboard.views.count; i++) {
         HALovelaceView *view = self.lovelaceDashboard.views[i];
-        [self.viewPicker insertSegmentWithTitle:view.title atIndex:i animated:NO];
+        UIImage *icon = nil;
+        if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad && [view.icon isKindOfClass:[NSString class]]) {
+            icon = [self renderMDIIcon:view.icon size:20];
+        }
+        if (icon) {
+            icon.accessibilityLabel = view.title;
+            [self.viewPicker insertSegmentWithImage:icon atIndex:i animated:NO];
+        } else {
+            [self.viewPicker insertSegmentWithTitle:view.title atIndex:i animated:NO];
+        }
     }
 
     self.viewPicker.selectedSegmentIndex = (NSInteger)self.selectedViewIndex;
