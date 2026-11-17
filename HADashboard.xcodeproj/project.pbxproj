@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		65B70A37FB85103BAAF2F622 /* HAGraphTimeAxis.m in Sources */ = {isa = PBXBuildFile; fileRef = 17DFE13F6B4BD1284A540F06 /* HAGraphTimeAxis.m */; };
+		D05CE78F95563E40FDAB248D /* HAStatisticsGraphTests.m in Sources */ = {isa = PBXBuildFile; fileRef = E774914AB5A6FA5E0306A1BE /* HAStatisticsGraphTests.m */; };
+		2ECFF5FF816978AF8E209E71 /* HAStatisticsData.m in Sources */ = {isa = PBXBuildFile; fileRef = DA83A695E109EC43397A41AB /* HAStatisticsData.m */; };
 		BC9CFB2AC1914C1DD9E756CD /* HAClockCardTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 35EEE3AA0C1CEE30348CC3F1 /* HAClockCardTests.m */; };
 		EFAE9B42E02EE1B0A9EC4490 /* HAClockCardSnapshotTests.m in Sources */ = {isa = PBXBuildFile; fileRef = F6100C6FE8F724D2FD32C5F0 /* HAClockCardSnapshotTests.m */; };
 		EBE0D3EBFC4D8794CAE9AFF7 /* HAClockCardCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 35004B84A370B7F279743089 /* HAClockCardCell.m */; };
@@ -1403,6 +1406,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F4F54042442F7303D71EA36C /* HAGraphTimeAxis.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HAGraphTimeAxis.h; sourceTree = "<group>"; };
+		17DFE13F6B4BD1284A540F06 /* HAGraphTimeAxis.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HAGraphTimeAxis.m; sourceTree = "<group>"; };
+		E774914AB5A6FA5E0306A1BE /* HAStatisticsGraphTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HAStatisticsGraphTests.m; sourceTree = "<group>"; };
+		5DEE961EA74CF0AE26C4D759 /* HAStatisticsData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HAStatisticsData.h; sourceTree = "<group>"; };
+		DA83A695E109EC43397A41AB /* HAStatisticsData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HAStatisticsData.m; sourceTree = "<group>"; };
 		35EEE3AA0C1CEE30348CC3F1 /* HAClockCardTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HAClockCardTests.m; sourceTree = "<group>"; };
 		F6100C6FE8F724D2FD32C5F0 /* HAClockCardSnapshotTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HAClockCardSnapshotTests.m; sourceTree = "<group>"; };
 		35004B84A370B7F279743089 /* HAClockCardCell.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HAClockCardCell.m; sourceTree = "<group>"; };
@@ -3330,6 +3338,8 @@
 				F507E17526A91541FBD197B2 /* HAEntityRowView.m */,
 				2DA104E81ED6075F88B50D77 /* HAGlanceItemView.h */,
 				908D7835DC6BF4E447C9DC3F /* HAGlanceItemView.m */,
+				F4F54042442F7303D71EA36C /* HAGraphTimeAxis.h */,
+				17DFE13F6B4BD1284A540F06 /* HAGraphTimeAxis.m */,
 				A264F155F20460835D5D0708 /* HAGraphView.h */,
 				646466F9B8796CF4B44D726C /* HAGraphView.m */,
 				D450833728C3B64408E925A7 /* HAMasonryLayout.h */,
@@ -4368,6 +4378,8 @@
 				D5673D876251FD6A44980900 /* HADeviceRegistration.m */,
 				0D90FC832BB51A26ABCF00CF /* HADiscoveryService.h */,
 				D199436AF0F65C8509089B7C /* HADiscoveryService.m */,
+				5DEE961EA74CF0AE26C4D759 /* HAStatisticsData.h */,
+				DA83A695E109EC43397A41AB /* HAStatisticsData.m */,
 				86821EF1EA2830D58D9D7495 /* HAHistoryManager.h */,
 				9CD3CEE209D08615B35F52CB /* HAHistoryManager.m */,
 				93A462BF1943FA1498424F65 /* HALogbookManager.h */,
@@ -4627,6 +4639,7 @@
 				CB202B450A9EBD9E273426E3 /* HABaseSnapshotTestCase.m */,
 				6A4ADBBFFA9D4D28AD62F59F /* HACacheTests.m */,
 				F30D442A27A89349EF13EF46 /* HACameraHLSTests.m */,
+				E774914AB5A6FA5E0306A1BE /* HAStatisticsGraphTests.m */,
 				BD2F5DDDEEA0B832F8559A22 /* HACameraFitModeTests.m */,
 				2943BB830FEC55FCCEDF66F3 /* HAClassicLayoutTests.m */,
 				A8072BB3C22561E6A2C4170E /* HAClimateSnapshotTests.m */,
@@ -6126,6 +6139,7 @@
 				7CCAA13FB11D40A59DCD055D /* HAConnectionManagerReconnectTests.m in Sources */,
 				0ABD799AC8AFA8C64D8F29E4 /* HACacheTests.m in Sources */,
 				7E713793F923745BFD9D8C93 /* HACameraHLSTests.m in Sources */,
+				D05CE78F95563E40FDAB248D /* HAStatisticsGraphTests.m in Sources */,
 				B4906208D9E02C270558CB62 /* HACameraFitModeTests.m in Sources */,
 				D1159FB81724A845F116D1BE /* HAClassicLayoutTests.m in Sources */,
 				EFAE9B42E02EE1B0A9EC4490 /* HAClockCardSnapshotTests.m in Sources */,
@@ -6258,9 +6272,11 @@
 				D048C566F1CB532DA779848B /* HAGlanceCardCell.m in Sources */,
 				F2A573379C5FCFAE2882AD9A /* HAGlanceItemView.m in Sources */,
 				B6FBD2BFF8DA22B79576CC0D /* HAGraphCardCell.m in Sources */,
+				65B70A37FB85103BAAF2F622 /* HAGraphTimeAxis.m in Sources */,
 				064D97C56C40D6FC920BB805 /* HAGraphView.m in Sources */,
 				577BE362309C38A4CC333DF5 /* HAHaptics.m in Sources */,
 				18CC68C2AE529079237629E3 /* HAHeadingCell.m in Sources */,
+				2ECFF5FF816978AF8E209E71 /* HAStatisticsData.m in Sources */,
 				22DB1747614BCB6083F69E4E /* HAHistoryManager.m in Sources */,
 				2029BCEF07FC433C512FC8B6 /* HAHumidifierEntityCell.m in Sources */,
 				E541E6E43710645D9D3EF4B4 /* HAIconMapper.m in Sources */,

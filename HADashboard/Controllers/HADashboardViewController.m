@@ -889,7 +889,7 @@ static const CGFloat kRowUnitHeight = 56.0;
         height = [HAGaugeCardCell preferredHeightForWidth:itemWidth] + headingExtra;
     } else if ([item.cardType isEqualToString:@"graph"] || [item.cardType isEqualToString:@"mini-graph-card"] ||
                [item.cardType isEqualToString:@"history-graph"]) {
-        height = [HAGraphCardCell preferredHeight] + headingExtra;
+        height = ([item.entitiesSection.customProperties[@"statistics"] boolValue] ? 240.0 : [HAGraphCardCell preferredHeight]) + headingExtra;
     } else if ([item.cardType isEqualToString:@"calendar"]) {
         NSString *initialView = item.customProperties[@"initial_view"];
         HACalendarViewMode mode = ([initialView hasPrefix:@"list"]) ? HACalendarViewModeList : HACalendarViewModeMonth;
@@ -2585,6 +2585,7 @@ isFullWidthItemAtIndexPath:(NSIndexPath *)indexPath {
     NSString *ct = item.cardType;
     if ([ct isEqualToString:@"graph"] || [ct isEqualToString:@"history-graph"] || [ct isEqualToString:@"mini-graph-card"]) {
         HADashboardConfigSection *entSection = item.entitiesSection ?: (HADashboardConfigSection *)item;
+        if ([entSection.customProperties[@"statistics"] boolValue]) return;
         NSArray *entityIds = entSection.entityIds;
         if (!entityIds.count) {
             if (item.entityId) entityIds = @[item.entityId];

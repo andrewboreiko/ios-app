@@ -1271,6 +1271,12 @@ static NSMutableSet<NSString *> *_HAUnsupportedCardLoggedTypes = nil;
         compositeType = @"graph";
         // history-graph uses "title" (already captured in sectionTitle/section.title)
         NSMutableDictionary *graphProps = [NSMutableDictionary dictionary];
+        if ([cardType isEqualToString:@"statistics-graph"]) {
+            graphProps[@"statistics"] = @YES;
+            for (NSString *key in @[@"days_to_show", @"period", @"stat_types", @"chart_type"]) {
+                if (card[key]) graphProps[key] = card[key];
+            }
+        }
         // hours_to_show determines the time window (default 24)
         NSNumber *hours = card[@"hours_to_show"];
         if ([hours isKindOfClass:[NSNumber class]]) {
@@ -1289,6 +1295,7 @@ static NSMutableSet<NSString *> *_HAUnsupportedCardLoggedTypes = nil;
                                                                       forEntityId:dict[@"entity"]
                                                                           context:nameContext];
                     if (cfgName.length > 0) cfg[@"name"] = cfgName;
+                    if ([dict[@"color"] isKindOfClass:[NSString class]]) cfg[@"color"] = dict[@"color"];
                     [entityConfigs addObject:[cfg copy]];
                 } else if ([entry isKindOfClass:[NSString class]]) {
                     [entityConfigs addObject:@{@"entity": entry}];

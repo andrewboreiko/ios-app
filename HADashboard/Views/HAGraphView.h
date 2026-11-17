@@ -34,6 +34,8 @@
 /// When set, dataPoints/lineColor are ignored. Gradient fill applies to first series only.
 /// Series are grouped by unit; each group gets independent Y-axis scaling.
 @property (nonatomic, copy) NSArray<NSDictionary *> *dataSeries;
+@property (nonatomic, assign) BOOL barChart;
+@property (nonatomic, assign) BOOL statisticsMode;
 
 /// State timeline data: Array of NSDictionary, each representing one entity's timeline:
 ///   @"segments" — NSArray<NSDictionary *> (each: @"state" NSString, @"start" NSNumber epoch, @"end" NSNumber epoch)

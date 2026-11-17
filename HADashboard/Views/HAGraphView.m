@@ -1,4 +1,5 @@
 #import "HAGraphView.h"
+#import "HAGraphTimeAxis.h"
 #import "HAStrings.h"
 #import "HATheme.h"
 #import <sys/utsname.h>
@@ -726,11 +727,82 @@ static NSDateFormatter *sCachedTimeFmt(void) {
 - (void)updatePaths {
     if (CGRectIsEmpty(self.bounds)) return;
 
-    if (self.dataSeries.count > 0) {
+    if (self.barChart && self.dataSeries.count > 0) {
+        [self updateBarPaths];
+    } else if (self.dataSeries.count > 0) {
         [self updateMultiSeriesPaths];
     } else {
         [self updateSingleSeriesPath];
     }
+}
+
+- (void)updateBarPaths {
+    self.fillMaskLayer.path = nil;
+    self.gradientLayer.hidden = YES;
+    double minTime = HUGE_VAL, maxTime = -HUGE_VAL;
+    NSMutableArray *groups = [NSMutableArray array];
+    for (NSDictionary *axis in self.axisGroups) {
+        NSMutableDictionary *group = [axis mutableCopy];
+        __block double low = 0, high = 0;
+        [axis[@"indices"] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+            if ([self.hiddenSeriesIndices containsIndex:index]) return;
+            for (NSDictionary *point in self.dataSeries[index][@"points"]) {
+                low = MIN(low, [point[@"value"] doubleValue]);
+                high = MAX(high, [point[@"value"] doubleValue]);
+            }
+        }];
+        double padding = MAX(high - low, 0.001) * 0.1;
+        group[@"yMin"] = @(low < 0 ? low - padding : 0);
+        group[@"yMax"] = @(high > 0 ? high + padding : (low < 0 ? 0 : 1));
+        [groups addObject:group];
+    }
+    self.axisGroups = groups;
+    NSUInteger visibleCount = 0;
+    for (NSUInteger index = 0; index < self.dataSeries.count; index++) {
+        if ([self.hiddenSeriesIndices containsIndex:index]) continue;
+        visibleCount++;
+        for (NSDictionary *point in self.dataSeries[index][@"points"]) {
+            minTime = MIN(minTime, [point[@"start"] doubleValue]);
+            maxTime = MAX(maxTime, [point[@"end"] doubleValue]);
+        }
+    }
+    for (CAShapeLayer *layer in self.lineLayers) layer.path = nil;
+    if (maxTime <= minTime || !visibleCount) {
+        [self removeOldAxisLabels];
+        return;
+    }
+    self.currentMinTime = minTime;
+    self.currentMaxTime = maxTime;
+    CGFloat left = [self graphAreaLeftPadding];
+    CGFloat width = self.bounds.size.width - left - [self graphAreaRightPadding];
+    CGFloat height = MAX(10, self.bounds.size.height - 4 - [self graphAreaBottomPadding] - [self currentLegendHeight]);
+    NSUInteger slot = 0;
+    for (NSUInteger index = 0; index < self.dataSeries.count && index < self.lineLayers.count; index++) {
+        if ([self.hiddenSeriesIndices containsIndex:index]) continue;
+        NSDictionary *series = self.dataSeries[index];
+        NSDictionary *axis = groups[[self.seriesIndexToGroupIndex[@(index)] unsignedIntegerValue]];
+        double low = [axis[@"yMin"] doubleValue], range = [axis[@"yMax"] doubleValue] - low;
+        CGFloat zeroY = 2 + height - (0 - low) / range * height;
+        UIBezierPath *path = [UIBezierPath bezierPath];
+        for (NSDictionary *point in series[@"points"]) {
+            double start = [point[@"start"] doubleValue], end = [point[@"end"] doubleValue];
+            CGFloat bucketWidth = (end - start) / (maxTime - minTime) * width;
+            CGFloat barWidth = bucketWidth * 0.82 / visibleCount;
+            CGFloat x = left + (start - minTime) / (maxTime - minTime) * width + bucketWidth * 0.09 + slot * barWidth;
+            CGFloat y = 2 + height - ([point[@"value"] doubleValue] - low) / range * height;
+            if (fabs(y - zeroY) > 0.01 && barWidth > 0) {
+                [path appendPath:[UIBezierPath bezierPathWithRect:CGRectMake(x, MIN(y, zeroY), barWidth, fabs(y - zeroY))]];
+            }
+        }
+        CAShapeLayer *layer = self.lineLayers[index];
+        UIColor *color = series[@"color"] ?: self.lineColor;
+        layer.fillColor = [color colorWithAlphaComponent:0.7].CGColor;
+        layer.strokeColor = color.CGColor;
+        layer.lineWidth = 0.5;
+        layer.path = path.CGPath;
+        slot++;
+    }
+    [self updateAxisLabels];
 }
 
 - (void)updateSingleSeriesPath {
@@ -739,6 +811,7 @@ static NSDateFormatter *sCachedTimeFmt(void) {
     CAShapeLayer *lineLayer = self.lineLayers.firstObject;
 
     if (self.dataPoints.count < 2) {
+        [self removeOldAxisLabels];
         lineLayer.path = nil;
         self.fillMaskLayer.path = nil;
         return;
@@ -863,7 +936,7 @@ static NSDateFormatter *sCachedTimeFmt(void) {
             double yRange = gMax - gMin;
             if (yRange < 0.001) yRange = 1.0;
             double yPad = yRange * 0.1;
-            gMin -= yPad;
+            gMin = (self.statisticsMode && gMin >= 0) ? 0 : gMin - yPad;
             gMax += yPad;
         } else {
             // No valid data for this group (all series hidden)
@@ -1011,7 +1084,7 @@ static NSDateFormatter *sCachedTimeFmt(void) {
     [self removeOldAxisLabels];
 
     // Skip axis labels entirely on lightweight devices or when disabled
-    if (!self.showAxisLabels || self.lightweight) return;
+    if (!self.showAxisLabels || (self.lightweight && !self.statisticsMode)) return;
 
     UIFont *axisFont = [UIFont systemFontOfSize:9];
     UIColor *axisColor = [HATheme tertiaryTextColor];
@@ -1169,10 +1242,47 @@ static NSDateFormatter *sCachedTimeFmt(void) {
     // Use fewer labels if drawing area is narrow
     if (timeAreaW < 150) timeCount = 3;
 
-    for (NSUInteger i = 0; i < timeCount; i++) {
-        double fraction = (double)i / (double)(timeCount - 1);
-        double t = minTime + fraction * timeRange;
-        NSDate *date = [NSDate dateWithTimeIntervalSince1970:t];
+    BOOL hourlyStatistics = NO;
+    if (self.statisticsMode && timeRange <= 48 * 3600) {
+        for (NSDictionary *series in self.dataSeries) {
+            for (NSDictionary *point in series[@"points"]) {
+                double duration = [point[@"end"] doubleValue] - [point[@"start"] doubleValue];
+                if (duration > 0 && duration <= 3600) hourlyStatistics = YES;
+            }
+        }
+    }
+    BOOL bucketStatistics = self.statisticsMode && self.barChart;
+    NSMutableArray *timeTicks = [NSMutableArray array];
+    if (bucketStatistics) {
+        timeFmt.dateFormat = hourlyStatistics ? @"HH:mm" : @"dd/MM";
+        CGFloat labelWidth = 0;
+        NSArray *samples = hourlyStatistics ? @[@"00:00", @"12:00", @"23:59"] : @[@"00/00", @"12/12", @"31/12"];
+        for (NSString *sample in samples) {
+            labelWidth = MAX(labelWidth, [sample sizeWithAttributes:@{NSFontAttributeName: axisFont}].width);
+        }
+        [timeTicks addObjectsFromArray:[HAGraphTimeAxis bucketTicksForSeries:self.dataSeries
+                                                                      from:minTime to:maxTime
+                                                                     width:timeAreaW labelWidth:labelWidth]];
+    } else if (hourlyStatistics) {
+        timeFmt.dateFormat = @"HH:mm";
+        CGFloat labelWidth = 0;
+        for (NSString *sample in @[@"00:00", @"12:00", @"23:59"]) {
+            labelWidth = MAX(labelWidth, [sample sizeWithAttributes:@{NSFontAttributeName: axisFont}].width);
+        }
+        [timeTicks addObjectsFromArray:[HAGraphTimeAxis hourlyTicksFrom:minTime to:maxTime
+                                                               width:timeAreaW labelWidth:labelWidth
+                                                            timeZone:timeFmt.timeZone]];
+    } else {
+        for (NSUInteger i = 0; i < timeCount; i++) {
+            [timeTicks addObject:@(minTime + (double)i / (double)(timeCount - 1) * timeRange)];
+        }
+    }
+    CGFloat previousLabelEnd = -CGFLOAT_MAX;
+    for (id tick in timeTicks) {
+        double t = bucketStatistics ? [tick[@"timestamp"] doubleValue] : [tick doubleValue];
+        double labelTime = bucketStatistics ? [tick[@"labelTimestamp"] doubleValue] : t;
+        double fraction = (t - minTime) / timeRange;
+        NSDate *date = [NSDate dateWithTimeIntervalSince1970:labelTime];
         NSString *text = [timeFmt stringFromDate:date];
 
         CGFloat x = timeAreaX + (CGFloat)(fraction) * timeAreaW;
@@ -1189,6 +1299,8 @@ static NSDateFormatter *sCachedTimeFmt(void) {
         CGFloat lblX = x - lblW / 2.0;
         if (lblX < 0) lblX = 0;
         if (lblX + lblW > self.bounds.size.width) lblX = self.bounds.size.width - lblW;
+        if ((hourlyStatistics || bucketStatistics) && lblX < previousLabelEnd + 6) continue;
+        previousLabelEnd = lblX + lblW;
         lbl.frame = CGRectMake(lblX, bottomY + 2.0, lblW, 14.0);
 
         [self addSubview:lbl];

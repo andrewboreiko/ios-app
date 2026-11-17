@@ -4,6 +4,9 @@
 #import "HADashboardConfig.h"
 #import "HATheme.h"
 #import "HAHistoryManager.h"
+#import "HAStatisticsData.h"
+#import "HAConnectionManager.h"
+#import "HAAuthManager.h"
 #import "HAEntityDisplayHelper.h"
 #import "HAIconMapper.h"
 #import <objc/runtime.h>
@@ -32,6 +35,12 @@ static NSArray<UIColor *> *sColorPalette;
 @property (nonatomic, copy) NSArray<NSDictionary *> *graphEntities; // Array of @{@"entityId", @"color", @"label"}
 // State timeline support: YES when all entities are state-based (binary_sensor, switch, etc.)
 @property (nonatomic, assign) BOOL isTimelineMode;
+@property (nonatomic, copy) NSDictionary *statisticsOptions;
+@property (nonatomic, copy) NSArray *statisticsKey;
+@property (nonatomic, assign) NSUInteger statisticsRequestId;
+@property (nonatomic, assign) BOOL statisticsLoading;
+@property (nonatomic, assign) BOOL statisticsVisible;
+@property (nonatomic, assign) NSTimeInterval statisticsLastAttempt;
 @end
 
 @implementation HAGraphCardCell
@@ -175,6 +184,14 @@ static NSArray<UIColor *> *sColorPalette;
 
 - (void)prepareForReuse {
     [super prepareForReuse];
+    self.statisticsRequestId++;
+    self.statisticsKey = nil;
+    self.statisticsOptions = nil;
+    self.statisticsLoading = NO;
+    self.statisticsVisible = NO;
+    self.statisticsLastAttempt = 0;
+    self.graphView.barChart = NO;
+    self.graphView.statisticsMode = NO;
     for (NSURLSessionDataTask *task in self.fetchTasks) {
         [task cancel];
     }
@@ -221,6 +238,11 @@ static NSArray<UIColor *> *sColorPalette;
 - (void)configureWithEntity:(HAEntity *)entity item:(HADashboardConfigItem *)item {
     if (!entity) return;
     self.currentEntityId = entity.entityId;
+    self.statisticsRequestId++;
+    self.statisticsKey = nil;
+    self.statisticsOptions = nil;
+    self.graphView.barChart = NO;
+    self.graphView.statisticsMode = NO;
 
     self.nameLabel.text = [HAEntityDisplayHelper displayNameForEntity:entity configItem:item nameOverride:nil];
 
@@ -428,6 +450,32 @@ static NSArray<UIColor *> *sColorPalette;
 
     // Defer history fetch until cell is visible (beginLoading)
     self.needsHistoryLoad = YES;
+    if ([props[@"statistics"] boolValue]) {
+        NSArray *key = @[props ?: @{}, self.graphEntities, [HAAuthManager sharedManager].serverURL ?: @""];
+        if (![self.statisticsKey isEqual:key]) {
+            self.statisticsRequestId++;
+            self.statisticsLoading = NO;
+            self.statisticsLastAttempt = 0;
+            self.graphView.dataSeries = nil;
+            self.statisticsKey = key;
+        }
+        self.statisticsOptions = [HAStatisticsData optionsFromProperties:props];
+        self.graphView.statisticsMode = YES;
+        self.graphView.barChart = [self.statisticsOptions[@"chart_type"] isEqual:@"bar"];
+        self.isTimelineMode = NO;
+        self.valueLabel.text = nil;
+        self.unitLabel.text = nil;
+        self.statsLabel.hidden = NO;
+        self.graphBottomToContent.active = NO;
+        self.graphBottomToStats.active = YES;
+        if (!self.statisticsOptions) self.statsLabel.text = @"Unsupported statistics configuration";
+    } else {
+        self.statisticsRequestId++;
+        self.statisticsKey = nil;
+        self.statisticsOptions = nil;
+        self.graphView.barChart = NO;
+        self.graphView.statisticsMode = NO;
+    }
 }
 
 #pragma mark - Color Helpers
@@ -498,6 +546,11 @@ static NSArray<UIColor *> *sColorPalette;
 #pragma mark - Deferred Loading
 
 - (void)beginLoading {
+    if (self.statisticsKey) {
+        self.statisticsVisible = YES;
+        if (self.statisticsOptions) [self loadStatistics];
+        return;
+    }
     if (self.needsHistoryLoad && self.currentEntityId) {
         self.needsHistoryLoad = NO;
         if (self.graphEntities.count > 1 || self.isTimelineMode) {
@@ -509,6 +562,7 @@ static NSArray<UIColor *> *sColorPalette;
 }
 
 - (void)cancelLoading {
+    self.statisticsVisible = NO;
     for (NSURLSessionDataTask *task in self.fetchTasks) {
         [task cancel];
     }
@@ -526,7 +580,7 @@ static NSArray<UIColor *> *sColorPalette;
                                                    hoursBack:hours
                                                   completion:^(NSArray *points, NSError *error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf || ![strongSelf.currentEntityId isEqualToString:capturedEntityId]) return;
+        if (!strongSelf || strongSelf.statisticsKey || ![strongSelf.currentEntityId isEqualToString:capturedEntityId]) return;
         if (points.count > 0) {
             strongSelf.graphView.dataPoints = points;
             [strongSelf updateStatsFromPoints:points];
@@ -580,7 +634,7 @@ static NSArray<UIColor *> *sColorPalette;
     __weak typeof(self) weakSelf = self;
     dispatch_group_notify(group, dispatch_get_main_queue(), ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf || ![strongSelf.currentEntityId isEqualToString:capturedPrimaryId]) return;
+        if (!strongSelf || strongSelf.statisticsKey || ![strongSelf.currentEntityId isEqualToString:capturedPrimaryId]) return;
 
         if (capturedTimelineMode) {
             NSMutableArray *timelineEntries = [NSMutableArray array];
@@ -624,6 +678,87 @@ static NSArray<UIColor *> *sColorPalette;
             }
         }
     });
+}
+
+- (void)loadStatistics {
+    NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+    if (self.statisticsLoading || now - self.statisticsLastAttempt < 60) return;
+    self.statisticsLastAttempt = now;
+    self.statisticsLoading = YES;
+    NSUInteger requestId = ++self.statisticsRequestId;
+    NSArray *key = self.statisticsKey;
+    NSArray *infos = self.graphEntities;
+    NSDictionary *options = self.statisticsOptions;
+    NSMutableArray *ids = [NSMutableArray array];
+    for (NSDictionary *info in infos) [ids addObject:info[@"entityId"]];
+    self.statsLabel.text = @"Loading statistics…";
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        HAGraphCardCell *cell = weakSelf;
+        if (cell.statisticsRequestId == requestId && cell.statisticsLoading) {
+            cell.statisticsLoading = NO;
+            cell.graphView.dataSeries = nil;
+            cell.statsLabel.text = @"Statistics request timed out";
+        }
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 60 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        HAGraphCardCell *cell = weakSelf;
+        if (cell.statisticsVisible && [cell.statisticsKey isEqual:key] && cell.statisticsLastAttempt == now) {
+            [cell loadStatistics];
+        }
+    });
+    HAConnectionManager *connection = [HAConnectionManager sharedManager];
+    [connection sendCommand:@{@"type": @"recorder/get_statistics_metadata", @"statistic_ids": ids}
+                 completion:^(id metadata, NSError *error) {
+        HAGraphCardCell *cell = weakSelf;
+        if (!cell || cell.statisticsRequestId != requestId || !cell.statisticsLoading) return;
+        if (error || ![metadata isKindOfClass:[NSArray class]]) {
+            cell.statisticsLoading = NO;
+            cell.graphView.dataSeries = nil;
+            cell.statsLabel.text = @"Statistics unavailable — check HA connection";
+            return;
+        }
+        NSMutableDictionary *units = [NSMutableDictionary dictionary];
+        for (id entry in metadata) {
+            if (![entry isKindOfClass:[NSDictionary class]]) continue;
+            if ([entry[@"statistic_id"] isKindOfClass:[NSString class]] &&
+                [entry[@"unit_of_measurement"] isKindOfClass:[NSString class]]) {
+                units[entry[@"statistic_id"]] = entry[@"unit_of_measurement"];
+            }
+        }
+        NSDictionary *command = [HAStatisticsData commandForEntityIds:ids options:options now:[NSDate date]];
+        [connection sendCommand:command completion:^(id result, NSError *fetchError) {
+            HAGraphCardCell *target = weakSelf;
+            if (!target || target.statisticsRequestId != requestId || !target.statisticsLoading) return;
+            target.statisticsLoading = NO;
+            if (fetchError || ![result isKindOfClass:[NSDictionary class]]) {
+                target.graphView.dataSeries = nil;
+                target.statsLabel.text = @"Statistics unavailable — check Recorder";
+                return;
+            }
+            NSMutableArray *series = [NSMutableArray array];
+            NSUInteger missing = 0;
+            for (NSDictionary *info in infos) {
+                BOOL hasData = NO;
+                for (NSString *statistic in options[@"stat_types"]) {
+                    NSArray *points = [HAStatisticsData pointsFromRows:result[info[@"entityId"]] statistic:statistic];
+                    if (!points.count) continue;
+                    hasData = YES;
+                    NSString *label = info[@"label"];
+                    if ([options[@"stat_types"] count] > 1) label = [label stringByAppendingFormat:@" (%@)", statistic];
+                    [series addObject:@{@"points": points, @"color": info[@"color"], @"label": label,
+                                        @"unit": units[info[@"entityId"]] ?: @""}];
+                }
+                if (!hasData) missing++;
+            }
+            [target.graphView.hiddenSeriesIndices removeAllIndexes];
+            target.graphView.dataSeries = series;
+            if (!series.count) target.statsLabel.text = @"No recorded statistics for this period";
+            else if (missing) target.statsLabel.text = @"Some entities have no recorded statistics";
+            else target.statsLabel.text = [NSString stringWithFormat:@"%@ · %@", options[@"period"],
+                                           [options[@"stat_types"] componentsJoinedByString:@", "]];
+        }];
+    }];
 }
 
 #pragma mark - Stats
