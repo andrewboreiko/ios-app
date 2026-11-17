@@ -1555,6 +1555,10 @@ static NSMutableSet<NSString *> *_HAUnsupportedCardLoggedTypes = nil;
                 if (dimensions[@"aspect_ratio"]) props[@"aspect_ratio"] = dimensions[@"aspect_ratio"];
             }
             if (card[@"aspect_ratio"]) props[@"aspect_ratio"] = card[@"aspect_ratio"];
+            NSString *fitMode = HASafeDictStringOrNil(card, @"fit_mode");
+            if ([fitMode isEqualToString:@"contain"] || [fitMode isEqualToString:@"cover"]) {
+                props[@"fit_mode"] = fitMode;
+            }
             // Button card icon height (e.g. "36px")
             if ([card[@"icon_height"] isKindOfClass:[NSString class]]) {
                 props[@"icon_height"] = card[@"icon_height"];

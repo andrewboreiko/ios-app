@@ -808,6 +808,11 @@ static const CGFloat kRowUnitHeight = 56.0;
 
 - (CGFloat)heightForItemAtIndexPath:(NSIndexPath *)indexPath itemWidth:(CGFloat)itemWidth {
     HADashboardConfigItem *item = [self itemAtIndexPath:indexPath];
+    if ([self.collectionView.collectionViewLayout isKindOfClass:[HAPanelLayout class]] &&
+        [item.entityId hasPrefix:@"camera."] && [item.customProperties[@"fit_mode"] isEqual:@"contain"] &&
+        !item.customProperties[@"height"] && item.rowSpan == 0 && self.collectionView.bounds.size.height > 0) {
+        return self.collectionView.bounds.size.height;
+    }
     HADashboardConfigSection *section = [self sectionAtIndex:indexPath.section];
     HAEntity *entity = [[HAConnectionManager sharedManager] entityForId:item.entityId];
     BOOL stateDependent = NO;

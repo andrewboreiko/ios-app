@@ -318,6 +318,10 @@ static HACameraStreamMode currentStreamMode(void) {
 - (void)configureWithEntity:(HAEntity *)entity configItem:(HADashboardConfigItem *)configItem {
     [super configureWithEntity:entity configItem:configItem];
 
+    BOOL contain = [configItem.customProperties[@"fit_mode"] isEqual:@"contain"];
+    self.snapshotView.contentMode = contain ? UIViewContentModeScaleAspectFit : UIViewContentModeScaleAspectFill;
+    self.hlsPlayerLayer.videoGravity = contain ? AVLayerVideoGravityResizeAspect : AVLayerVideoGravityResizeAspectFill;
+
     // Hide camera name unless explicitly configured — camera feeds are self-evident
     NSString *camNameOvr = configItem.customProperties[@"nameOverride"];
     BOOL hasExplicitName = (camNameOvr.length > 0) ||
@@ -1190,7 +1194,8 @@ static HACameraStreamMode currentStreamMode(void) {
     [self.hlsPlayerLayer addObserver:self forKeyPath:@"readyForDisplay"
                              options:NSKeyValueObservingOptionNew context:NULL];
     self.hlsReadyKVORegistered = YES;
-    self.hlsPlayerLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
+    self.hlsPlayerLayer.videoGravity = self.snapshotView.contentMode == UIViewContentModeScaleAspectFit
+        ? AVLayerVideoGravityResizeAspect : AVLayerVideoGravityResizeAspectFill;
     self.hlsPlayerLayer.frame = self.snapshotView.bounds;
     // DON'T add the layer to the view yet — wait until readyForDisplay confirms
     // video is actually rendering. This prevents a blank HLS layer from covering
